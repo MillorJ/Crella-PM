@@ -1,10 +1,31 @@
 {
-  "chats": [],
+  "chats": [
+    {
+      "id": 1,
+      "title": "hi hello",
+      "createdAt": 1758524720
+    },
+    {
+      "id": 2,
+      "title": "test JSON database persistence",
+      "createdAt": 1758524728
+    },
+    {
+      "id": 3,
+      "title": "hi",
+      "createdAt": 1758524760
+    },
+    {
+      "id": 4,
+      "title": "test real-time UI updates",
+      "createdAt": 1758524930
+    }
+  ],
   "messages": [],
   "tasks": [],
   "projects": [],
   "counters": {
-    "chatId": 1,
+    "chatId": 5,
     "messageId": 1,
     "taskId": 1,
     "projectId": 1

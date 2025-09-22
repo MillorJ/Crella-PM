@@ -4,37 +4,36 @@ import { jsonDb } from "./json-db";
 // Use reliable JSON file database
 const db = {
   select: () => ({
-    from: (table: any) => ({
-      where: (condition?: any) => ({
-        orderBy: (order?: any) => {
-          if (table === schema.chats) {
-            return jsonDb.selectChats();
-          }
-          if (table === schema.messages) {
-            if (condition && condition.value !== undefined) {
-              return jsonDb.selectMessages(condition.value);
+    from: (table: any) => {
+      // Direct call to from() should return the data immediately
+      if (table === schema.chats) {
+        return jsonDb.selectChats();
+      }
+      if (table === schema.tasks) {
+        return jsonDb.selectTasks();
+      }
+      
+      // Return an object for chaining where() and orderBy() when needed
+      return {
+        where: (condition?: any) => ({
+          orderBy: (order?: any) => {
+            if (table === schema.messages) {
+              if (condition && condition.value !== undefined) {
+                return jsonDb.selectMessages(condition.value);
+              }
+              return [];
             }
             return [];
           }
-          if (table === schema.tasks) {
-            return jsonDb.selectTasks();
+        }),
+        orderBy: (order?: any) => {
+          if (table === schema.messages) {
+            return [];
           }
           return [];
         }
-      }),
-      orderBy: (order?: any) => {
-        if (table === schema.chats) {
-          return jsonDb.selectChats();
-        }
-        if (table === schema.messages) {
-          return [];
-        }
-        if (table === schema.tasks) {
-          return jsonDb.selectTasks();
-        }
-        return [];
-      }
-    })
+      };
+    }
   }),
   
   insert: (table: any) => ({
