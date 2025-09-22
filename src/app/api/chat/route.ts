@@ -1,59 +1,132 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { chats, messages } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { z } from "zod";
-import { callProvider, type Provider } from "@/lib/providers";
+import { callOpenAI, callAnthropic } from "@/lib/providers";
 import { CRELLA_SYSTEM } from "@/lib/crella";
+import { eq } from "drizzle-orm";
 
-const Body = z.object({
-  chatId: z.number().optional(),
-  provider: z.union([z.literal("openai"), z.literal("anthropic")]),
-  userText: z.string().min(1),
-  system: z.string().optional(),
-  openAIModel: z.string().optional(),
-  anthropicModel: z.string().optional(),
-});
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      chatId,
+      provider = "openai",
+      userText,
+      system = CRELLA_SYSTEM,
+      openAIModel,
+      anthropicModel,
+    } = body;
 
-export async function POST(req: NextRequest) {
-  const json = await req.json();
-  const input = Body.parse(json);
+    if (!userText?.trim()) {
+      return NextResponse.json({ error: "Message content is required" }, { status: 400 });
+    }
 
-  // Create chat if not provided
-  let chatId = input.chatId;
-  if (!chatId) {
-    const inserted = await db.insert(chats).values({ title: input.userText.slice(0, 60) }).returning({ id: chats.id });
-    chatId = inserted[0].id;
+    let currentChatId = chatId;
+
+    // Create new chat if none provided
+    if (!currentChatId) {
+      const title = userText.length > 60 ? userText.substring(0, 60) + "..." : userText;
+      const [newChat] = await db.insert(chats).values({ title }).returning();
+      currentChatId = newChat.id;
+
+      // Insert system message for new chat
+      await db.insert(messages).values({
+        chatId: currentChatId,
+        role: "system",
+        provider,
+        content: system,
+      });
+    }
+
+    // Insert user message
+    await db.insert(messages).values({
+      chatId: currentChatId,
+      role: "user",
+      provider,
+      content: userText,
+    });
+
+    // Get all messages for this chat
+    const chatMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.chatId, currentChatId))
+      .orderBy(messages.createdAt);
+
+    // Convert to format expected by providers
+    const formattedMessages = chatMessages.map(msg => ({
+      role: msg.role as "system" | "user" | "assistant",
+      content: msg.content,
+    }));
+
+    // Create streaming response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let fullResponse = "";
+        
+        try {
+          const model = provider === "openai" ? openAIModel : anthropicModel;
+          const streamGenerator = provider === "openai" 
+            ? callOpenAI(formattedMessages, model)
+            : callAnthropic(formattedMessages, model);
+
+          for await (const chunk of streamGenerator) {
+            fullResponse += chunk;
+            
+            // Send chunk to client
+            const data = JSON.stringify({ 
+              content: chunk, 
+              chatId: currentChatId,
+              done: false 
+            });
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          }
+
+          // Save complete assistant response to database
+          await db.insert(messages).values({
+            chatId: currentChatId,
+            role: "assistant",
+            provider,
+            content: fullResponse,
+          });
+
+          // Send completion signal
+          const finalData = JSON.stringify({ 
+            content: "", 
+            chatId: currentChatId,
+            done: true,
+            fullResponse 
+          });
+          controller.enqueue(encoder.encode(`data: ${finalData}\n\n`));
+          
+        } catch (error) {
+          console.error("Streaming error:", error);
+          const errorData = JSON.stringify({ 
+            error: "Failed to generate response", 
+            chatId: currentChatId,
+            done: true 
+          });
+          controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+        }
+        
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
+
+  } catch (error) {
+    console.error("Chat API error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  // Ensure system persona exists once per chat
-  const systemText = input.system ?? CRELLA_SYSTEM;
-  const existing = await db.select().from(messages).where(eq(messages.chatId, chatId));
-  if (!existing.some((m) => m.role === "system")) {
-    await db.insert(messages).values({ chatId, role: "system", provider: input.provider, content: systemText });
-  }
-
-  // Persist user message
-  await db.insert(messages).values({ chatId, role: "user", provider: input.provider, content: input.userText });
-
-  // Take last 12 messages as context
-  const history = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.chatId, chatId))
-    .orderBy(messages.createdAt)
-    .limit(12);
-
-  const assistantReply = await callProvider(
-    input.provider as Provider,
-    history.map((m) => ({ role: m.role as any, content: m.content })),
-    { openAIModel: input.openAIModel, anthropicModel: input.anthropicModel }
-  );
-
-  const [saved] = await db
-    .insert(messages)
-    .values({ chatId, role: "assistant", provider: input.provider, content: assistantReply })
-    .returning({ id: messages.id });
-
-  return Response.json({ chatId, messageId: saved.id, text: assistantReply });
 }
