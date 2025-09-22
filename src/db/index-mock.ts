@@ -13,20 +13,37 @@ let messageIdCounter = 1;
 let taskIdCounter = 1;
 let projectIdCounter = 1;
 
+// Mock eq function for Drizzle compatibility
+const createMockEq = (column: any, value: any) => {
+  return { column, value, type: 'eq' };
+};
+
 // Mock database operations
 const mockDb = {
   select: () => ({
     from: (table: any) => ({
       where: (condition: any) => ({
         orderBy: (order: any) => {
+          console.log("🔍 Mock DB - WHERE query on", table?.name || 'unknown_table', condition);
           if (table === schema.chats) return mockChats;
-          if (table === schema.messages) return mockMessages;
+          if (table === schema.messages) {
+            // Handle Drizzle eq condition
+            if (condition && condition.type === 'eq' && condition.value !== undefined) {
+              return mockMessages.filter(m => m.chatId === condition.value);
+            }
+            // Fallback for direct chatId
+            if (condition && condition.chatId !== undefined) {
+              return mockMessages.filter(m => m.chatId === condition.chatId);
+            }
+            return mockMessages;
+          }
           if (table === schema.tasks) return mockTasks;
           if (table === schema.projects) return mockProjects;
           return [];
         }
       }),
       orderBy: (order: any) => {
+        console.log("🔍 Mock DB - SELECT from", table?.name || 'unknown_table');
         if (table === schema.chats) return mockChats;
         if (table === schema.messages) return mockMessages;
         if (table === schema.tasks) return mockTasks;
@@ -55,6 +72,7 @@ const mockDb = {
             createdAt: Math.floor(Date.now() / 1000) 
           };
           mockMessages.push(newMessage);
+          console.log("🔍 Mock DB - Inserted message:", newMessage);
           return [newMessage];
         }
         if (table === schema.tasks) {
@@ -100,6 +118,7 @@ const mockDb = {
 };
 
 export const db = mockDb as any;
+export const eq = createMockEq;
 export type Schema = typeof schema;
 
 console.log("⚠️  Using MOCK database - better-sqlite3 bindings not available");

@@ -16,6 +16,10 @@ export async function* callOpenAI(
   model: string = process.env.OPENAI_MODEL || "gpt-4o-mini"
 ) {
   try {
+    console.log("🔍 OpenAI Debug - API Key present:", !!process.env.OPENAI_API_KEY);
+    console.log("🔍 OpenAI Debug - Model:", model);
+    console.log("🔍 OpenAI Debug - Messages:", messages);
+    
     const stream = await openai.chat.completions.create({
       model,
       messages: messages.map(msg => ({

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, eq } from "@/db";
 import { chats, messages } from "@/db/schema";
 import { callOpenAI, callAnthropic } from "@/lib/providers";
 import { CRELLA_SYSTEM } from "@/lib/crella";
-import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
       content: userText,
     });
 
-    // Get all messages for this chat
+    // Get all messages for this chat to maintain conversation history
     const chatMessages = await db
       .select()
       .from(messages)
@@ -58,6 +57,8 @@ export async function POST(request: NextRequest) {
       role: msg.role as "system" | "user" | "assistant",
       content: msg.content,
     }));
+
+    console.log("🔍 Chat API - Loaded", formattedMessages.length, "messages for chat", currentChatId);
 
     // Create streaming response
     const encoder = new TextEncoder();

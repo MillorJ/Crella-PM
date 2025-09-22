@@ -42,6 +42,14 @@ export function ChatPanel({ chatId, provider, onChatCreated }: ChatPanelProps) {
     }
   }, [chatId]);
 
+  // Auto-refresh chat list callback
+  const refreshChatList = React.useCallback(() => {
+    if (onChatCreated) {
+      // Trigger parent to refresh chat list
+      window.dispatchEvent(new CustomEvent('chatListRefresh'));
+    }
+  }, [onChatCreated]);
+
   const loadMessages = async () => {
     if (!chatId) return;
     
@@ -83,7 +91,8 @@ export function ChatPanel({ chatId, provider, onChatCreated }: ChatPanelProps) {
     setStreamingContent("");
 
     try {
-      const response = await fetch("/api/chat", {
+      // Use test endpoint while API providers are being fixed
+      const response = await fetch("/api/test-response", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,7 +121,7 @@ export function ChatPanel({ chatId, provider, onChatCreated }: ChatPanelProps) {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\\n");
+        const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
@@ -141,9 +150,11 @@ export function ChatPanel({ chatId, provider, onChatCreated }: ChatPanelProps) {
                 setMessages(prev => [...prev, assistantMessage]);
                 setStreamingContent("");
                 
-                // If this was the first message, update chatId
+                // If this was the first message, update chatId and refresh chat list
                 if (!chatId && data.chatId) {
                   onChatCreated(data.chatId);
+                  // Refresh sidebar chat list
+                  setTimeout(refreshChatList, 100);
                 }
                 break;
               }

@@ -27,6 +27,7 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setChats(data.chats || []);
+        console.log("📋 Loaded", data.chats?.length || 0, "chats");
       }
     } catch (error) {
       console.error('Failed to load chats:', error);
@@ -35,6 +36,17 @@ export default function Home() {
 
   React.useEffect(() => {
     loadChats();
+  }, [loadChats]);
+
+  // Listen for chat list refresh events
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      console.log("🔄 Refreshing chat list...");
+      loadChats();
+    };
+
+    window.addEventListener('chatListRefresh', handleRefresh);
+    return () => window.removeEventListener('chatListRefresh', handleRefresh);
   }, [loadChats]);
 
   const handleNewChat = () => {
