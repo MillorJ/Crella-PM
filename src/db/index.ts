@@ -1,33 +1,90 @@
 import * as schema from "./schema";
+import { jsonDb } from "./json-db";
 
-// Try to use real database, fallback to mock if bindings fail
-let db: any;
-let eq: any;
-let Schema: typeof schema;
+// Use reliable JSON file database
+const db = {
+  select: () => ({
+    from: (table: any) => ({
+      where: (condition?: any) => ({
+        orderBy: (order?: any) => {
+          if (table === schema.chats) {
+            return jsonDb.selectChats();
+          }
+          if (table === schema.messages) {
+            if (condition && condition.value !== undefined) {
+              return jsonDb.selectMessages(condition.value);
+            }
+            return [];
+          }
+          if (table === schema.tasks) {
+            return jsonDb.selectTasks();
+          }
+          return [];
+        }
+      }),
+      orderBy: (order?: any) => {
+        if (table === schema.chats) {
+          return jsonDb.selectChats();
+        }
+        if (table === schema.messages) {
+          return [];
+        }
+        if (table === schema.tasks) {
+          return jsonDb.selectTasks();
+        }
+        return [];
+      }
+    })
+  }),
+  
+  insert: (table: any) => ({
+    values: (values: any) => ({
+      returning: () => {
+        if (table === schema.chats) {
+          const chat = jsonDb.insertChat(values.title);
+          return [chat];
+        }
+        if (table === schema.messages) {
+          const message = jsonDb.insertMessage(
+            values.chatId,
+            values.role,
+            values.provider,
+            values.content
+          );
+          return [message];
+        }
+        if (table === schema.tasks) {
+          const task = jsonDb.insertTask(
+            values.title,
+            values.projectId,
+            values.owner,
+            values.dueDate,
+            values.notes,
+            values.status
+          );
+          return [task];
+        }
+        return [];
+      }
+    })
+  }),
+  
+  update: (table: any) => ({
+    set: (values: any) => ({
+      where: (condition: any) => ({
+        returning: () => {
+          if (table === schema.tasks && condition.value) {
+            const task = jsonDb.updateTask(condition.value, values);
+            return task ? [task] : [];
+          }
+          return [];
+        }
+      })
+    })
+  })
+};
 
-try {
-  // Attempt to load better-sqlite3
-  const Database = require("better-sqlite3");
-  const { drizzle } = require("drizzle-orm/better-sqlite3");
-  const { eq: drizzleEq } = require("drizzle-orm");
-  
-  const sqlite = new Database(".data/local.sqlite");
-  db = drizzle(sqlite, { schema });
-  eq = drizzleEq;
-  Schema = schema;
-  
-  console.log("✅ Connected to SQLite database at .data/local.sqlite");
-  
-} catch (error) {
-  console.warn("⚠️  better-sqlite3 bindings not available, using mock database");
-  console.warn("📝 Install/rebuild better-sqlite3 for persistent storage");
-  
-  // Use mock database
-  const mockDb = require("./index-mock");
-  db = mockDb.db;
-  eq = mockDb.eq;
-  Schema = mockDb.Schema;
-}
+const eq = (column: any, value: any) => ({ column, value, type: 'eq' });
 
 export { db, eq };
-export type { Schema };
+export type Schema = typeof schema;

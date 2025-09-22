@@ -29,12 +29,15 @@ const mockDb = {
           if (table === schema.messages) {
             // Handle Drizzle eq condition
             if (condition && condition.type === 'eq' && condition.value !== undefined) {
-              return mockMessages.filter(m => m.chatId === condition.value);
+              const filtered = mockMessages.filter(m => m.chatId === condition.value);
+              console.log("🔍 Mock DB - Filtered messages:", filtered.length, "for chatId", condition.value);
+              return filtered;
             }
             // Fallback for direct chatId
             if (condition && condition.chatId !== undefined) {
               return mockMessages.filter(m => m.chatId === condition.chatId);
             }
+            console.log("🔍 Mock DB - All messages:", mockMessages.length);
             return mockMessages;
           }
           if (table === schema.tasks) return mockTasks;
@@ -121,5 +124,21 @@ export const db = mockDb as any;
 export const eq = createMockEq;
 export type Schema = typeof schema;
 
+// Export the data arrays for debugging
+export const getMockData = () => ({
+  chats: mockChats,
+  messages: mockMessages,
+  tasks: mockTasks,
+  projects: mockProjects
+});
+
 console.log("⚠️  Using MOCK database - better-sqlite3 bindings not available");
 console.log("📝 This is for testing only. Data will not persist between restarts.");
+
+// Debug function to show current database state
+export const debugDatabase = () => {
+  console.log("🔍 Database Debug:");
+  console.log("  Chats:", mockChats.length, mockChats);
+  console.log("  Messages:", mockMessages.length, mockMessages);
+  console.log("  Tasks:", mockTasks.length, mockTasks);
+};

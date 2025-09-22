@@ -91,8 +91,8 @@ export function ChatPanel({ chatId, provider, onChatCreated }: ChatPanelProps) {
     setStreamingContent("");
 
     try {
-      // Use test endpoint while API providers are being fixed
-      const response = await fetch("/api/test-response", {
+      // Use regular chat endpoint to debug real flow
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

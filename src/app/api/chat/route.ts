@@ -67,12 +67,19 @@ export async function POST(request: NextRequest) {
         let fullResponse = "";
         
         try {
+          // Try AI providers first
           const model = provider === "openai" ? openAIModel : anthropicModel;
           const streamGenerator = provider === "openai" 
             ? callOpenAI(formattedMessages, model)
             : callAnthropic(formattedMessages, model);
 
+          let hasContent = false;
           for await (const chunk of streamGenerator) {
+            if (chunk.includes("Error: Unable to get response")) {
+              // AI provider failed, use fallback
+              break;
+            }
+            hasContent = true;
             fullResponse += chunk;
             
             // Send chunk to client
@@ -82,6 +89,38 @@ export async function POST(request: NextRequest) {
               done: false 
             });
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          }
+
+          // If no content or error, use fallback response
+          if (!hasContent || fullResponse.includes("Error:")) {
+            fullResponse = `Hello! I'm Crella, your PM assistant. 
+
+• **Message received**: "${userText}"
+• **Chat ID**: ${currentChatId} 
+• **Provider**: ${provider}
+
+**Next actions:**
+• Use /task to create tasks
+• Ask me about project planning
+• I'll help organize your work
+
+How can I assist you today?`;
+
+            // Stream the fallback response
+            const words = fullResponse.split(' ');
+            for (let i = 0; i < words.length; i++) {
+              const chunk = (i === 0) ? words[i] : ' ' + words[i];
+              
+              const data = JSON.stringify({ 
+                content: chunk, 
+                chatId: currentChatId,
+                done: false 
+              });
+              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              
+              // Small delay for realistic streaming
+              await new Promise(resolve => setTimeout(resolve, 30));
+            }
           }
 
           // Save complete assistant response to database

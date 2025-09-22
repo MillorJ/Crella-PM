@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "next build", 
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:check": "ls -la .data/ && echo 'Database files:' && find .data -name '*.sqlite' -exec ls -lh {} \\;",
-    "setup": "mkdir -p .data && touch .data/local.sqlite && echo 'Database setup complete!'"
+    "db:setup": "node scripts/setup-db.js",
+    "db:check": "ls -la data/ && echo 'Database files:' && find data -name '*.db' -exec ls -lh {} \\;",
+    "setup": "npm run db:setup"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
