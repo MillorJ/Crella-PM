@@ -12,7 +12,7 @@ export default function Home() {
 
     // Slash command for quick task creation
     if (input.startsWith("/task ")) {
-      const m = input.match(/^\\/task\\s+(.+?)(?:\\s+by\\s+(\\d{4}-\\d{2}-\\d{2}))?(?:\\s+@(\\S+))?$/i);
+      const m = input.match(/^\/task\s+(.+?)(?:\s+by\s+(\d{4}-\d{2}-\d{2}))?(?:\s+@(\S+))?$/i);
       if (m) {
         await fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: m[1], dueDate: m[2], owner: m[3] }) });
         setLog((l) => [...l, `Crella: Task created — ${m[1]} ${m[2] ? `(due ${m[2]})` : ""} ${m[3] ? `(@${m[3]})` : ""}`]);
